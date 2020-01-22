@@ -27,7 +27,6 @@ var options = parseArgs(process.argv.slice(0),schema)
 var cfgPath = path.resolve(cwd,options.config || 'imbaconfig.json')
 var dir = path.dirname(cfgPath)
 var cfg = fs.existsSync(cfgPath) ? require(cfgPath) : {}
-var imbaPath = path.resolve(__dirname,'../node_modules/imba')
 
 def relPath dir
 	path.relative(cwd,dir)
@@ -46,17 +45,60 @@ def resolvePaths obj
 			obj[k] = resolvePaths(v)
 	return obj
 
-
+import resolve from 'resolve'
 import rollup from 'rollup'
-import imba-plugin from 'imba/rollup.js'
-import resolve from 'rollup-plugin-node-resolve'
-import commonjs from 'rollup-plugin-commonjs'
+import resolve-plugin from 'rollup-plugin-node-resolve'
+import commonjs-plugin from 'rollup-plugin-commonjs'
 import serve-plugin from 'rollup-plugin-serve'
 import hmr-plugin from 'rollup-plugin-livereload'
+
+
+def resolveImba basedir
+	let src = (resolve.sync('imba',{ basedir: basedir }) || '').replace('/index.js','')
+	if src
+		let pkg = require(src + '/package.json')
+		return {
+			path: src
+			version: pkg.version
+		}
+
+var cwdlib = resolveImba(cwd)
+var pkglib = resolveImba(__dirname)
+
+var lib = cwdlib or pkglib
+
+if cwdlib && pkglib && cwdlib.version != pkglib.version
+	console.log 'conflicting versions of imba',cwdlib,pkglib
+
+console.log cwdlib,pkglib
 
 var bundles = []
 var watch = options.watch
 var serve = options.serve
+
+var imbac = require(lib.path + '/dist/compiler.js')
+
+def imbaPlugin options
+	options = Object.assign({
+		sourceMap: {},
+		bare: true,
+		extensions: ['.imba', '.imba2'],
+		ENV_ROLLUP: true,
+		imbaPath: lib.path
+	}, options || {})
+
+	var extensions = options.extensions
+	delete options.extensions
+	delete options.include
+	delete options.exclude
+
+	return {
+		transform: do |code, id|
+			var opts = Object.assign({},options,{sourcePath: id})
+			return null if extensions.indexOf(path.extname(id)) === -1
+			var output = imbac.compile(code, opts)
+			return { code: output.js, map: output.sourcemap }
+	}
 
 class Bundle
 	def constructor config
@@ -90,9 +132,9 @@ for entry in cfg.entries
 	entry = resolvePaths(entry)
 	let target = entry.target or 'web'
 	let plugins = (entry.plugins ||= [])
-	plugins.unshift(commonjs())
-	plugins.unshift(resolve(extensions: ['.imba', '.mjs','.js','.cjs','.json']))
-	plugins.unshift(imba-plugin(target: target, imbaPath: imbaPath))
+	plugins.unshift(commonjs-plugin())
+	plugins.unshift(resolve-plugin(extensions: ['.imba', '.mjs','.js','.cjs','.json']))
+	plugins.unshift(imba-plugin(target: target))
 
 	if options.serve and target == 'web'
 		let pubdir = path.dirname(entry.output.file)

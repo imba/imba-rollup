@@ -70,8 +70,6 @@ var lib = cwdlib or pkglib
 if cwdlib && pkglib && cwdlib.version != pkglib.version
 	console.log 'conflicting versions of imba',cwdlib,pkglib
 
-console.log cwdlib,pkglib
-
 var bundles = []
 var watch = options.watch
 var serve = options.serve

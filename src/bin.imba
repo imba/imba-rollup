@@ -136,9 +136,14 @@ for entry in cfg.entries
 
 	if options.serve and target == 'web'
 		let pubdir = path.dirname(entry.output.file)
-		plugins.push(serve-plugin({contentBase: pubdir,historyApiFallback: true}))
+		let serve-config = Object.assign({
+			contentBase: pubdir,
+			historyApiFallback: true
+		},cfg.serve or {})
+		let base = serve-config.contentBase
+		plugins.push(serve-plugin(serve-config))
 		if options.hmr
-			plugins.push(hmr-plugin(pubdir))
+			plugins.push(hmr-plugin(base))
 	bundles.push(Bundle.new(entry))
 
 def run

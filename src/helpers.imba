@@ -92,3 +92,15 @@ export def parseArgs argv, o = {}
 		options["ENV_{options.env}"] = yes
 
 	return options
+
+
+export def printErrorInDocument
+	var div = document.createElement('div')
+	div.innerHTML = `
+	<h2>Error in ERROR_FILE</h2>
+	`
+	var pre = document.createElement('pre')
+	pre.innerText = `ERROR_SNIPPET`
+	div.appendChild(pre)
+	window.addEventListener('load') do
+		window.document.body.appendChild(div)

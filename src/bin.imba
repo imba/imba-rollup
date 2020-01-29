@@ -1,4 +1,4 @@
-import {parseArgs} from './helpers'
+import {parseArgs,printErrorInDocument} from './helpers'
 var fs = require 'fs'
 var path = require 'path'
 var args = process.argv.slice(0)
@@ -92,9 +92,22 @@ def imbaPlugin options
 
 	return {
 		transform: do |code, id|
-			var opts = Object.assign({},options,{sourcePath: id})
+			var opts = Object.assign({},options,{sourcePath: id, filename: id})
+			var output
 			return null if extensions.indexOf(path.extname(id)) === -1
-			var output = imbac.compile(code, opts)
+
+			try
+				output = imbac.compile(code, opts)
+			catch e
+				if options.target == 'web' and serve
+					let msg = e.excerpt(colors: no)
+					let fn = printErrorInDocument.toString()
+					fn = fn.replace("ERROR_FILE",id)
+					fn = fn.replace("ERROR_SNIPPET",msg)
+					return {code: '(' + fn + ')()', map: {}}
+				else
+					throw e
+
 			return { code: output.js, map: output.sourcemap }
 	}
 
@@ -112,14 +125,19 @@ class Bundle
 		return @promise
 
 	def onevent e
-		# console.log "event",e
 		if e.code == 'BUNDLE_START'
 			console.log "bundles {relPath(e.input)} → {relPath(e.output[0])}"
 		elif e.code == 'BUNDLE_END'
 			console.log "created {relPath(e.input)} → {relPath(e.output[0])} in {e.duration}ms"
 			# @resolver(e)
 		elif e.code == 'ERROR'
-			console.log "bundling error",e
+			let file = e.error && e.error.filename or e.error.id
+			console.log "errored {file ? relPath(file) : ''}"
+			if e.error.excerpt
+				console.log e.error.excerpt(colors: yes)
+			else
+				console.log e.error.message
+
 			@rejector(e)
 		elif e.code == 'END'
 			# console.log "created {relPath(e.input)} → {relPath(e.output[0])}"
